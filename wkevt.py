@@ -139,14 +139,6 @@ class TestFrame(wx.Frame):
         self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
         self.ScreenPnl.Bind(wx.EVT_LEFT_DOWN, self.OnSbmLeftDown)
         self.ScreenPnl.Bind(wx.EVT_LEFT_UP, self.OnSbmLeftUp)
-        # self.ScreenPnl.Bind(wx.EVT_RIGHT_DOWN, self.OnRightDown)
-        # self.ScreenPnl.Bind(wx.EVT_RIGHT_UP, self.OnRightUp)
-        # self.ScreenPnl.Bind(wx.EVT_LEFT_DCLICK, self.OnDblClick)
-
-        # self.sbm = wx.Window(panel, pos=(5, 5), size=(300, 300), style=wx.TRANSPARENT_WINDOW)
-
-        # # self.sbm.Bind(wx.EVT_PAINT, self.OnSbmPaint)
-        # self.sbm.Bind(wx.EVT_LEFT_DOWN, self.OnSbmLeftDown)
         self.ScreenPnl.Bind(wx.EVT_MOTION, self.OnSbmMotion)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -155,7 +147,6 @@ class TestFrame(wx.Frame):
         panel.Layout()
 
         self.bitmap = None
-        # print 'loading:', self.ScreenPnl.RunScript('document.readyState')
         self.map = None
         self.ScreenPnl.LoadURL('file://'+os.path.join(os.getcwd(), 'wkevt.html'))
         # self.ScreenPnl.LoadURL('http://www.ebay.com')
@@ -232,27 +223,6 @@ class TestFrame(wx.Frame):
         for ss in self._selection.itervalues():
             ss.Move(pt)
 
-    def OnRightDown(self, event):
-        print 'OnRightDown',
-        pos = event.GetPosition()
-        print pos
-        self.OnLeftDown(event)
-        # self.OnContextMenu(selector=bool(len(self._selection)), pos=pos)
-
-    def OnRightUp(self, event):
-        print 'OnRightUp'
-
-    def EraseBackground(self, event):
-        #print 'EraseBackground'
-        if self.bitmap:
-            dc = event.GetDC()
-            pdc = wx.MemoryDC(self.bitmap)
-            dc.Clear()
-            dc.Blit(100, 100, self.bitmap.GetWidth(), self.bitmap.GetHeight(), pdc, 0, 0)
-
-    def OnClose(self, event):
-        self.Close()
-
     def OnSbmLeftDown(self, event):
         self.ScreenPnl.CaptureMouse()
         self.pt = pos = event.GetPosition()
@@ -315,20 +285,6 @@ class TestFrame(wx.Frame):
                     self.BeginResize()
                 else:
                     self.Resize(pt)
-
-    def OnSbmPaint(self, event):        
-        pdc = wx.PaintDC(self.sbm)
-        try:
-            dc = wx.GCDC(pdc)
-        except:
-            dc = pdc
-        rect = wx.Rect(self.x, self.y, 50, 50)
-        r, g, b = (178, 34, 34)
-        penclr = wx.Colour(r, g, b, 255)
-        brushclr = wx.Colour(r, g, b, 128)
-        dc.SetPen(wx.Pen(penclr))
-        dc.SetBrush(wx.Brush(brushclr))
-        dc.DrawRoundedRectangleRect(rect, 8)
 
     def Select(self, widget_id, add_to_selection=False):
         self.grab = 0

@@ -42,25 +42,22 @@ class Selector(wx.Object):
     def __repr__(self):
         return str((self.element_id, self.rect))
 
-    def BeginDrag(self, pos, pt):
-        self.hotspot = pos - self.rect.GetPosition()
+    # def BeginDrag(self, pos, pt):
+    #     self.hotspot = pos - self.rect.GetPosition()
 
-    def EndDrag(self):
-        pt = self._winLoc - self.hotspot
-        # pt.x = self.editor.Snap(pt.x, self.editor.controller._settings.ide_sizeToGrid)
-        # pt.y = self.editor.Snap(pt.y, self.editor.controller._settings.ide_sizeToGrid)
+    # def EndDrag(self):
+    #     pt = self._winLoc - self.hotspot
+    #     # pt.x = self.editor.Snap(pt.x, self.editor.controller._settings.ide_sizeToGrid)
+    #     # pt.y = self.editor.Snap(pt.y, self.editor.controller._settings.ide_sizeToGrid)
 
-        # self.MoveWin(pt)        
-        print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize()))
-        print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize())))
-
-        # self._win.Show()
-        # self._dragImage = None
+    #     # self.MoveWin(pt)        
+    #     print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize()))
+    #     print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize())))
 
     def EndResize(self):
         self._resizing = False
         self._rect = self._win.GetRect()
-        _log.debug('EndResize:{0!r}'.format(self._rect))
+        print('EndResize:{0!r}'.format(self._rect))
         if self.grab in [1, 2, 3, 5, 6, 7]:
             height = self.editor.Snap(self._rect.height - 2 - self.info.obj._offsetY, self.editor.controller._settings.ide_sizeToGrid)
             self._rect.Height = height + 2 + self.info.obj._offsetY
@@ -78,7 +75,7 @@ class Selector(wx.Object):
             self._rect.Left = left - 1
             self.editor.EndResize(self.info, 'left', left)
         self._win.SetRect(self._rect)
-            
+
     def GetCursor(self, pos, can_resize):
         # Returns the Grab Handle index (0-8) and the stock cursor to use
         if not self.rect.Contains(pos):
@@ -103,21 +100,38 @@ class Selector(wx.Object):
                                     pt.y < margin, pt.y >= height - margin)]
         return grab, cursor
 
-    def GetPosition(self):
-        return self.rect.GetPosition()
+    def Move(self, delta):
+        pos = self.rect.GetPosition() + delta
+        size = self.rect.GetSize()
+        bounds = self.webview.GetSize()
 
-    def Move(self, pt):
-        if pt.x - self.hotspot.x < 0:
-            pt.x = self.hotspot.x
-        if pt.y - self.hotspot.y < 0:
-            pt.y = self.hotspot.y
-        if pt.x + (self.rect.GetWidth() - self.hotspot.x)  > self.webview.GetSize().x - 6:
-            pt.x = self.webview.GetSize().x - 6 - (self.rect.GetWidth() - self.hotspot.x) + 1
-        if pt.y + (self.rect.GetSize().y - self.hotspot.y) > self.webview.GetSize().y - 6:
-            pt.y = self.webview.GetSize().y - 6 - (self.webview.GetSize().y - self.hotspot.y) + 1
-        print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize()))
-        print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize())))
-        self._winLoc = pt
+        # Normalize adjusted position and size
+        pos.x = min(max(0, pos.x), bounds.x - size.x)
+        pos.y = min(max(0, pos.y), bounds.y - size.y)
+        self.rect.SetTopLeft(pos)
+
+        print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect))
+        print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect)))
+
+    def Resize(self, delta, grab):
+        l, t, w, h = self.rect
+        r, b = l + w, t + h
+        bounds = self.webview.GetSize()
+
+        # Normalize adjusted position and size
+        min_size = 5
+        if   grab in [1, 7, 8]:
+            l = min(max(0, l + delta.x), r - min_size)
+        elif grab in [3, 4, 5]:
+            r = min(max(l + min_size, r + delta.x), bounds.x)
+        if   grab in [1, 2, 3]:
+            t = min(max(0, t + delta.y), b - min_size)
+        elif grab in [5, 6, 7]:
+            b = min(max(t + min_size, b + delta.y), bounds.y)
+        self.rect.Set(l, t, r - l, b - t)
+
+        print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect))
+        print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect)))
 
 
 class TestFrame(wx.Frame):
@@ -128,7 +142,7 @@ class TestFrame(wx.Frame):
         self.pt = None
         self._dragging = False
         self._resizing = False
-        self._selector = None
+        self._selection = {}    # A dict of Selector objects, keyed by widget_id as str
 
         panel = wx.Panel(self)
 
@@ -137,9 +151,9 @@ class TestFrame(wx.Frame):
         self.ScreenPnl.SetClientSize(size)
         self.ScreenPnl.SetMinSize(self.ScreenPnl.GetSize())
         self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
-        self.ScreenPnl.Bind(wx.EVT_LEFT_DOWN, self.OnSbmLeftDown)
-        self.ScreenPnl.Bind(wx.EVT_LEFT_UP, self.OnSbmLeftUp)
-        self.ScreenPnl.Bind(wx.EVT_MOTION, self.OnSbmMotion)
+        self.ScreenPnl.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
+        self.ScreenPnl.Bind(wx.EVT_LEFT_UP, self.OnLeftUp)
+        self.ScreenPnl.Bind(wx.EVT_MOTION, self.OnMotion)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.AddWindow(self.ScreenPnl, 0, flag=wx.ALL, border=5)
@@ -150,63 +164,50 @@ class TestFrame(wx.Frame):
         self.map = None
         self.ScreenPnl.LoadURL('file://'+os.path.join(os.getcwd(), 'wkevt.html'))
         # self.ScreenPnl.LoadURL('http://www.ebay.com')
-        # print 'loading:', self.ScreenPnl.RunScript('document.readyState')
-        # print 'map:', self.ScreenPnl.RunScript('NSB.fe.getMap()')
 
-        self._selection = {}
-
-    def BeginDrag(self, pos, pt):
+    def BeginDrag(self, pos):
         self._dragging = True
-        for ss in self._selection.itervalues():
-            ss.BeginDrag(pos, pt)
+        self.SetCursor_(pos)
 
-    def BeginResize(self):
-        pass
-        
-    def DeselectAll(self, widget_id=None, notify_controller=True):
-        # self.Refresh()
-        for ww, ss in self._selection.items():
-            if not widget_id or widget_id is not ww:
-                # ss.Destroy()
-                del self._selection[ww]
-        # _log.debug('DeselectAll ' + str(self._selection))
+    def BeginResize(self, pos):
+        self._resizing = True
+        # self.SetCursor_(pos)
+
+    def Deselect(self, widget_id=None, notify_controller=True):
+        if widget_id:   # Deselect One
+            del self._selection[widget_id]
+        else:           # Deselect All
+            self._selection.clear()
 
         # if notify_controller:
         #     # TODO: this should be somewhere else - another method - perhaps a wrapper
         #     self.controller.Select(self.source, [self._form])
-        self.ScreenPnl.RunScript('NSB.fe.select([])')
+        print 'self.ScreenPnl.RunScript', 'select({0})'.format(json.dumps(self._selection.keys()))
+        print 'selected', self.ScreenPnl.RunScript('NSB.fe.select({0})'.format(json.dumps(self._selection.keys())))
 
-    def EndDrag(self, pos):
-        for ww, ss in self._selection.iteritems():
-            # reposition and draw the widgets
-            print ('Left: {0}, PosX: {1}, PtX: {2}'.format(ss.rect.GetLeft(), pos.x, self.pt.x))
-            # don't allow widgets to get dragged off screenpnl
-            left = ss.rect.GetLeft() + pos.x - self.pt.x
-            top = ss.rect.GetTop() + pos.y - self.pt.y
-            if left < 0:
-                left = 0
-            if top < 0:
-                top = 0
-            if (left + ss.rect.GetWidth()) > (self.ScreenPnl.Size.x - 6):
-                left = (self.ScreenPnl.Size.x - 6) - ss.rect.GetWidth() - 1
-            if (top + ss.rect.GetHeight()) > (self.ScreenPnl.Size.y - 6):
-                top = (self.ScreenPnl.Size.y - 6) - ss.rect.GetHeight() - 1
-            # left = self.Snap(left, self.controller._settings.ide_sizeToGrid)
-            # top = self.Snap(top, self.controller._settings.ide_sizeToGrid)
-            # self.controller.SetProperty(self.source, [ss], 'left', left)
-            # self.controller.SetProperty(self.source, [ss], 'top', top)
+    def Drag(self, pos):
+        delta = pos - self.pt
+        if not self._dragging:
+            tolerance = 2
+            if abs(delta.x) <= tolerance and abs(delta.y) <= tolerance:
+                return
+            self.BeginDrag(pos)
 
-        # self.Show_(self._selection.keys())
+        self.MoveSelection(delta)
+        self.pt = pos
 
-        for ss in self._selection.itervalues():
-            ss.EndDrag()
+    def EndDrag(self):
+        # MMD: Should the snap code be moved into MoveSelection?
+        #     # left = self.Snap(left, self.controller._settings.ide_sizeToGrid)
+        #     # top = self.Snap(top, self.controller._settings.ide_sizeToGrid)
+        #     # self.controller.SetProperty(self.source, [ss], 'left', left)
+        #     # self.controller.SetProperty(self.source, [ss], 'top', top)
 
-        # self.Refresh()
+        # # self.Show_(self._selection.keys())
         self._dragging = False
 
-    def EndResize(self, widget, prop, value):
+    def EndResize(self):
         self._resizing = False
-        # self.Refresh()
         # self.controller.SetProperty(self.source, [widget], prop, value)
         # self.Show_([widget])
 
@@ -219,110 +220,81 @@ class TestFrame(wx.Frame):
                 return widget_id
         return None
 
-    def MoveSelection(self, pt):
+    def MoveSelection(self, delta):
         for ss in self._selection.itervalues():
-            ss.Move(pt)
+            ss.Move(delta)
 
-    def OnSbmLeftDown(self, event):
+    def OnLeftDown(self, event):
         self.ScreenPnl.CaptureMouse()
         self.pt = pos = event.GetPosition()
         widget_id = self.HitTest(pos)
-        print 'OnSbmLeftDown -- HitTest', widget_id
+        print 'OnLeftDown -- HitTest', widget_id
 
         if widget_id:  # new version for selection and multi-selection
             self.Select(widget_id, event.ControlDown())
             print 'self._selection', self._selection.values()
-            if widget_id in self._selection:
-                widget_rect = self._selection[widget_id].rect
-                self._selection[widget_id].pt = wx.Point(pos.x - widget_rect[0], pos.y - widget_rect[1])
-                # event.m_x = pt.x
-                # event.m_y = pt.y
-                # self._selection[widget].OnLeftDown(event)
-            # _log.debug('Selecting... ' + str(self._selection.keys()))
             # self.controller.Select(self.source, self._selection.keys())
         else:
-            self.DeselectAll()
+            self.Deselect()
 
         # event.Skip()
 
-    def OnSbmLeftUp(self, event):
-        # print('sbm left up')
+    def OnLeftUp(self, event):
         if self._dragging:
-            self.EndDrag(event.GetPosition())
+            self.EndDrag()
         if self._resizing:
             self.EndResize()
         self.ScreenPnl.ReleaseMouse()
 
-    def OnSbmMotion(self, event):
+    def OnMotion(self, event):
         if not event.Dragging():
             self.SetCursor_(event.GetPosition())
         if event.LeftIsDown() and event.Dragging():
-            print 'Left Drag, grab:', self.grab
-            pt = event.GetPosition()
-            if self.grab == 0:   # Drag
-                topleft = self._selector.GetPosition()
-                if not self._dragging:
-                    tolerance = 2
-                    dx = abs(pt.x - self.pt.x)
-                    dy = abs(pt.y - self.pt.y)
-                    if dx <= tolerance and dy <= tolerance:
-                        return
+            pos = event.GetPosition()
+            if self.grab == 0:
+                self.Drag(pos)
+            else:
+                self.Resize(pos)
 
-                    pos = self.pt + topleft
-                    self.BeginDrag(pos, pt)# + topleft)
-                else:
-                    self.MoveSelection(pt)# + topleft)
-            else:               # Resize
-                if not self._resizing:
-                    tolerance = 2
-                    dx = abs(pt.x - self.pt.x)
-                    dy = abs(pt.y - self.pt.y)
-                    if ((self.grab in [1, 3, 4, 5, 7, 8] and dx <= tolerance)
-                        or
-                        (self.grab in [1, 2, 3, 5, 6, 7] and dy <= tolerance)):
-                        return
+    def Resize(self, pos):
+        delta = pos - self.pt
+        if not self._resizing:
+            tolerance = 2
+            if ((self.grab in [1, 3, 4, 5, 7, 8] and abs(delta.x) <= tolerance)
+                or
+                (self.grab in [1, 2, 3, 5, 6, 7] and abs(delta.y) <= tolerance)):
+                return
+            self.BeginResize(pos)
 
-                    self.BeginResize()
-                else:
-                    self.Resize(pt)
+        # Line could be replaced by a ResizeSelection, similar to MoveSelection
+        self._selection.values()[0].Resize(delta, self.grab)
+        self.pt = pos
 
     def Select(self, widget_id, add_to_selection=False):
         self.grab = 0
         if add_to_selection:
-            # Add or subtract item from selection
             if widget_id in self._selection:
-                # Subtract
-                del self._selection[widget_id]
-                # if len(self._selection):
-                #     self._selector = self._selection.values()[0]
-                # else:
-                self._selector = None
+                # Deselect a selected item
+                self.Deselect(widget_id)
                 return
         else:
             if not widget_id in self._selection:
                 # Deselect anything irrelevant
-                self.DeselectAll(notify_controller=False)
+                self.Deselect(notify_controller=False)
             else:
-                self._selector = self._selection[widget_id]
                 return
-        self._selection[widget_id] = self._selector = Selector(self.ScreenPnl, widget_id, self.map[widget_id])
+        self._selection[widget_id] = Selector(self.ScreenPnl, widget_id, self.map[widget_id])
         print 'self.ScreenPnl.RunScript', 'select({0})'.format(json.dumps(self._selection.keys()))
         print 'selected', self.ScreenPnl.RunScript('NSB.fe.select({0})'.format(json.dumps(self._selection.keys())))
 
-    def Resize(self, pt):
-        pass
-
     def SetCursor_(self, pos):
-        print 'Setting cursor...'
         for sel in self._selection.itervalues():
             self.grab, cursor = sel.GetCursor(pos, len(self._selection) == 1)
             if cursor is not None:
                 self.ScreenPnl.SetCursor(wx.StockCursor(cursor))
-                self._selector = sel
                 return
         else:
             self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
-            self._selector = None
 
 
 class TestApp(wx.App):

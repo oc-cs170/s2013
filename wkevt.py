@@ -76,29 +76,35 @@ class Selector(wx.Object):
             self.editor.EndResize(self.info, 'left', left)
         self._win.SetRect(self._rect)
 
-    def GetCursor(self, pos, can_resize):
-        # Returns the Grab Handle index (0-8) and the stock cursor to use
+    def GetGrab(self, pos, no_resize):
+        # Returns the Grab Handle index (0-8), -1 for cursor outside rect
         if not self.rect.Contains(pos):
-            return None, None
-        if not can_resize:
-            return 0, wx.CURSOR_HAND
+            return -1
+        if no_resize:
+            return 0
         pt = pos - self.rect.GetPosition()
         width, height = self.rect.GetSize()
         margin = 5
-        # Key: (Left margin, Right margin, Top margin, Bottom margin)
+
         # Grab handles start in top/left at 1, increasing clockwise, 0 for none
-        grab_cursor = {(False, False, False, False):    (0, wx.CURSOR_HAND),
-                       (True, False, True, False):      (1, wx.CURSOR_SIZENWSE),
-                       (False, False, True, False):     (2, wx.CURSOR_SIZENS),
-                       (False, True, True, False):      (3, wx.CURSOR_SIZENESW),
-                       (False, True, False, False):     (4, wx.CURSOR_SIZEWE),
-                       (False, True, False, True):      (5, wx.CURSOR_SIZENWSE),
-                       (False, False, False, True):     (6, wx.CURSOR_SIZENS),
-                       (True, False, False, True):      (7, wx.CURSOR_SIZENESW),
-                       (True, False, False, False):     (8, wx.CURSOR_SIZEWE)}
-        grab, cursor = grab_cursor[(pt.x < margin, pt.x >= width - margin,
-                                    pt.y < margin, pt.y >= height - margin)]
-        return grab, cursor
+        if pt.x < margin:
+            if pt.y < margin:
+                return 1
+            elif pt.y >= height - margin:
+                return 7
+            return 8
+        elif pt.x >= width - margin:
+            if pt.y < margin:
+                return 3
+            elif pt.y >= height - margin:
+                return 5
+            return 4
+        else:
+            if pt.y < margin:
+                return 2
+            elif pt.y >= height - margin:
+                return 6
+            return 0
 
     def Move(self, delta):
         pos = self.rect.GetPosition() + delta
@@ -135,6 +141,10 @@ class Selector(wx.Object):
 
 
 class TestFrame(wx.Frame):
+    grab_cursors = [wx.CURSOR_OPEN_HAND, wx.CURSOR_SIZENWSE, wx.CURSOR_SIZENS,
+                    wx.CURSOR_SIZENESW, wx.CURSOR_SIZEWE, wx.CURSOR_SIZENWSE,
+                    wx.CURSOR_SIZENS, wx.CURSOR_SIZENESW, wx.CURSOR_SIZEWE,
+                    wx.CURSOR_ARROW]
     def __init__(self, parent, title):
         wx.Frame.__init__(self, parent, title=title, pos=(150, 150), size=(600, 400))
         self.x, self.y = 10, 10
@@ -142,7 +152,9 @@ class TestFrame(wx.Frame):
         self.pt = None
         self._dragging = False
         self._resizing = False
+        self.block_resize = True
         self._selection = {}    # A dict of Selector objects, keyed by widget_id as str
+        self.grab = 0
 
         panel = wx.Panel(self)
 
@@ -165,13 +177,14 @@ class TestFrame(wx.Frame):
         self.ScreenPnl.LoadURL('file://'+os.path.join(os.getcwd(), 'wkevt.html'))
         # self.ScreenPnl.LoadURL('http://www.ebay.com')
 
+        self.ScreenPnl.SetFocus()
+
     def BeginDrag(self, pos):
         self._dragging = True
-        self.SetCursor_(pos)
+        self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_CLOSED_HAND))
 
     def BeginResize(self, pos):
         self._resizing = True
-        # self.SetCursor_(pos)
 
     def Deselect(self, widget_id=None, notify_controller=True):
         if widget_id:   # Deselect One
@@ -196,7 +209,7 @@ class TestFrame(wx.Frame):
         self.MoveSelection(delta)
         self.pt = pos
 
-    def EndDrag(self):
+    def EndDrag(self, pos):
         # MMD: Should the snap code be moved into MoveSelection?
         #     # left = self.Snap(left, self.controller._settings.ide_sizeToGrid)
         #     # top = self.Snap(top, self.controller._settings.ide_sizeToGrid)
@@ -204,12 +217,14 @@ class TestFrame(wx.Frame):
         #     # self.controller.SetProperty(self.source, [ss], 'top', top)
 
         # # self.Show_(self._selection.keys())
+        self.GetGrab(pos)
         self._dragging = False
 
-    def EndResize(self):
-        self._resizing = False
+    def EndResize(self, pos):
         # self.controller.SetProperty(self.source, [widget], prop, value)
         # self.Show_([widget])
+        self.GetGrab(pos)
+        self._resizing = False
 
     def HitTest(self, pos):
         if not self.map:
@@ -230,9 +245,11 @@ class TestFrame(wx.Frame):
         widget_id = self.HitTest(pos)
         print 'OnLeftDown -- HitTest', widget_id
 
+        if not widget_id in self._selection:
+            self.block_resize = True
         if widget_id:  # new version for selection and multi-selection
             self.Select(widget_id, event.ControlDown())
-            print 'self._selection', self._selection.values()
+            self.GetGrab(pos)
             # self.controller.Select(self.source, self._selection.keys())
         else:
             self.Deselect()
@@ -240,20 +257,22 @@ class TestFrame(wx.Frame):
         # event.Skip()
 
     def OnLeftUp(self, event):
+        pos = event.GetPosition()
         if self._dragging:
-            self.EndDrag()
+            self.EndDrag(pos)
         if self._resizing:
-            self.EndResize()
+            self.EndResize(pos)
         self.ScreenPnl.ReleaseMouse()
+        self.block_resize = True
 
     def OnMotion(self, event):
-        if not event.Dragging():
-            self.SetCursor_(event.GetPosition())
+        if not event.Dragging() and self._selection:
+            self.GetGrab(event.GetPosition())
         if event.LeftIsDown() and event.Dragging():
             pos = event.GetPosition()
             if self.grab == 0:
                 self.Drag(pos)
-            else:
+            elif not self.block_resize:
                 self.Resize(pos)
 
     def Resize(self, pos):
@@ -271,7 +290,6 @@ class TestFrame(wx.Frame):
         self.pt = pos
 
     def Select(self, widget_id, add_to_selection=False):
-        self.grab = 0
         if add_to_selection:
             if widget_id in self._selection:
                 # Deselect a selected item
@@ -284,17 +302,24 @@ class TestFrame(wx.Frame):
             else:
                 return
         self._selection[widget_id] = Selector(self.ScreenPnl, widget_id, self.map[widget_id])
-        print 'self.ScreenPnl.RunScript', 'select({0})'.format(json.dumps(self._selection.keys()))
-        print 'selected', self.ScreenPnl.RunScript('NSB.fe.select({0})'.format(json.dumps(self._selection.keys())))
+        if len(self._selection) != 1:
+            self.grab = 0
+        action = 'NSB.fe.select({0})'.format(json.dumps(self._selection.keys()))
+        print 'self.ScreenPnl.RunScript', action
+        print 'selected', self.ScreenPnl.RunScript(action)
 
-    def SetCursor_(self, pos):
-        for sel in self._selection.itervalues():
-            self.grab, cursor = sel.GetCursor(pos, len(self._selection) == 1)
-            if cursor is not None:
-                self.ScreenPnl.SetCursor(wx.StockCursor(cursor))
-                return
+    def GetGrab(self, pos):
+        if len(self._selection) == 1:
+            sel = self._selection.values()[0]
+            self.grab = sel.GetGrab(pos, no_resize=False)
+            self.ScreenPnl.SetCursor(wx.StockCursor(self.grab_cursors[self.grab]))
         else:
-            self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))
+            self.grab = 0
+            grabs = [x.GetGrab(pos, no_resize=True) for x in self._selection.itervalues()]
+            if 0 in grabs:
+                self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_OPEN_HAND))
+            else:
+                self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))                
 
 
 class TestApp(wx.App):

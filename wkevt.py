@@ -263,7 +263,7 @@ class TestFrame(wx.Frame):
         if self._resizing:
             self.EndResize(pos)
         self.ScreenPnl.ReleaseMouse()
-        self.block_resize = True
+        self.block_resize = False
 
     def OnMotion(self, event):
         if not event.Dragging() and self._selection:

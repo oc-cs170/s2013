@@ -272,8 +272,11 @@ class TestFrame(wx.Frame):
             pos = event.GetPosition()
             if self.grab == 0:
                 self.Drag(pos)
-            elif not self.block_resize:
-                self.Resize(pos)
+            else:
+                if self.block_resize:
+                    self.GetGrab(event.GetPosition())
+                else:
+                    self.Resize(pos)
 
     def Resize(self, pos):
         delta = pos - self.pt

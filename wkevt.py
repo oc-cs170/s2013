@@ -37,22 +37,13 @@ class Selector(wx.Object):
         self.webview = webview
         self.element_id = element_id
         self.rect = wx.Rect(*rect)
-        self.hotspot = None
 
     def __repr__(self):
         return str((self.element_id, self.rect))
 
-    # def BeginDrag(self, pos, pt):
-    #     self.hotspot = pos - self.rect.GetPosition()
-
     # def EndDrag(self):
-    #     pt = self._winLoc - self.hotspot
     #     # pt.x = self.editor.Snap(pt.x, self.editor.controller._settings.ide_sizeToGrid)
     #     # pt.y = self.editor.Snap(pt.y, self.editor.controller._settings.ide_sizeToGrid)
-
-    #     # self.MoveWin(pt)        
-    #     print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize()))
-    #     print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(pt) + list(self.rect.GetSize())))
 
     def EndResize(self):
         self._resizing = False
@@ -150,11 +141,12 @@ class TestFrame(wx.Frame):
         self.x, self.y = 10, 10
         size = wx.Size(480, 320)
         self.pt = None
+        self.grab = 0
         self._dragging = False
         self._resizing = False
         self.block_resize = True
         self._selection = {}    # A dict of Selector objects, keyed by widget_id as str
-        self.grab = 0
+        self.map = None
 
         panel = wx.Panel(self)
 
@@ -172,8 +164,6 @@ class TestFrame(wx.Frame):
         panel.SetSizer(sizer)
         panel.Layout()
 
-        self.bitmap = None
-        self.map = None
         self.ScreenPnl.LoadURL('file://'+os.path.join(os.getcwd(), 'wkevt.html'))
         # self.ScreenPnl.LoadURL('http://www.ebay.com')
 
@@ -195,8 +185,9 @@ class TestFrame(wx.Frame):
         # if notify_controller:
         #     # TODO: this should be somewhere else - another method - perhaps a wrapper
         #     self.controller.Select(self.source, [self._form])
-        print 'self.ScreenPnl.RunScript', 'select({0})'.format(json.dumps(self._selection.keys()))
-        print 'selected', self.ScreenPnl.RunScript('NSB.fe.select({0})'.format(json.dumps(self._selection.keys())))
+        action = 'NSB.fe.select({0})'.format(json.dumps(self._selection.keys()))
+        print 'self.ScreenPnl.RunScript', action
+        print 'selected', self.ScreenPnl.RunScript(action)
 
     def Drag(self, pos):
         delta = pos - self.pt
@@ -225,6 +216,19 @@ class TestFrame(wx.Frame):
         # self.Show_([widget])
         self.GetGrab(pos)
         self._resizing = False
+
+    def GetGrab(self, pos):
+        if len(self._selection) == 1:
+            sel = self._selection.values()[0]
+            self.grab = sel.GetGrab(pos, no_resize=False)
+            self.ScreenPnl.SetCursor(wx.StockCursor(self.grab_cursors[self.grab]))
+        else:
+            self.grab = 0
+            grabs = [x.GetGrab(pos, no_resize=True) for x in self._selection.itervalues()]
+            if 0 in grabs:
+                self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_OPEN_HAND))
+            else:
+                self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))                
 
     def HitTest(self, pos):
         if not self.map:
@@ -270,13 +274,10 @@ class TestFrame(wx.Frame):
             self.GetGrab(event.GetPosition())
         if event.LeftIsDown() and event.Dragging():
             pos = event.GetPosition()
-            if self.grab == 0:
+            if self.grab == 0 or self.block_resize:
                 self.Drag(pos)
             else:
-                if self.block_resize:
-                    self.GetGrab(event.GetPosition())
-                else:
-                    self.Resize(pos)
+                self.Resize(pos)
 
     def Resize(self, pos):
         delta = pos - self.pt
@@ -310,19 +311,6 @@ class TestFrame(wx.Frame):
         action = 'NSB.fe.select({0})'.format(json.dumps(self._selection.keys()))
         print 'self.ScreenPnl.RunScript', action
         print 'selected', self.ScreenPnl.RunScript(action)
-
-    def GetGrab(self, pos):
-        if len(self._selection) == 1:
-            sel = self._selection.values()[0]
-            self.grab = sel.GetGrab(pos, no_resize=False)
-            self.ScreenPnl.SetCursor(wx.StockCursor(self.grab_cursors[self.grab]))
-        else:
-            self.grab = 0
-            grabs = [x.GetGrab(pos, no_resize=True) for x in self._selection.itervalues()]
-            if 0 in grabs:
-                self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_OPEN_HAND))
-            else:
-                self.ScreenPnl.SetCursor(wx.StockCursor(wx.CURSOR_ARROW))                
 
 
 class TestApp(wx.App):

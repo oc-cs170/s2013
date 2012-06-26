@@ -29,6 +29,9 @@ except ImportError:
         def ReleaseMouse(self):
             self._skin.ReleaseMouse()
 
+        def SetFocus(self):
+            self._skin.SetFocus()
+
     wv.WebView = WebView
 
 

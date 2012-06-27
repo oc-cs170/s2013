@@ -35,14 +35,15 @@ except ImportError:
     wv.WebView = WebView
 
 
-class Selector(wx.Object):
+class Selector(wx.Rect):
     def __init__(self, webview, element_id, rect):
+        super(Selector, self).__init__()
         self.webview = webview
         self.element_id = element_id
-        self.rect = wx.Rect(*rect)
+        self.Set(*rect)
 
     def __repr__(self):
-        return str((self.element_id, self.rect))
+        return str((self.element_id, list(self)))
 
     # def EndDrag(self):
     #     # pt.x = self.editor.Snap(pt.x, self.editor.controller._settings.ide_sizeToGrid)
@@ -72,12 +73,12 @@ class Selector(wx.Object):
 
     def GetGrab(self, pos, no_resize):
         # Returns the Grab Handle index (0-8), -1 for cursor outside rect
-        if not self.rect.Contains(pos):
+        if not self.Contains(pos):
             return -1
         if no_resize:
             return 0
-        pt = pos - self.rect.GetPosition()
-        width, height = self.rect.GetSize()
+        pt = pos - self.GetPosition()
+        width, height = self.GetSize()
         margin = 5
 
         # Grab handles start in top/left at 1, increasing clockwise, 0 for none
@@ -101,20 +102,22 @@ class Selector(wx.Object):
             return 0
 
     def Move(self, delta):
-        pos = self.rect.GetPosition() + delta
-        size = self.rect.GetSize()
+        pos = self.GetPosition() + delta
+        size = self.GetSize()
         bounds = self.webview.GetSize()
 
         # Normalize adjusted position and size
         pos.x = min(max(0, pos.x), bounds.x - size.x)
         pos.y = min(max(0, pos.y), bounds.y - size.y)
-        self.rect.SetTopLeft(pos)
+        self.SetTopLeft(pos)
 
-        print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect))
-        print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect)))
+        action = 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self))
+        print action
+        ran = self.webview.RunScript(action)
+        print ran
 
     def Resize(self, delta, grab):
-        l, t, w, h = self.rect
+        l, t, w, h = self
         r, b = l + w, t + h
         bounds = self.webview.GetSize()
 
@@ -128,10 +131,12 @@ class Selector(wx.Object):
             t = min(max(0, t + delta.y), b - min_size)
         elif grab in [5, 6, 7]:
             b = min(max(t + min_size, b + delta.y), bounds.y)
-        self.rect.Set(l, t, r - l, b - t)
+        self.Set(l, t, r - l, b - t)
 
-        print 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect))
-        print self.webview.RunScript('NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self.rect)))
+        action = 'NSB.fe.setCanvasRect("{0}", {1})'.format(self.element_id, list(self))
+        print action
+        ran = self.webview.RunScript(action)
+        print ran
 
 
 class TestFrame(wx.Frame):

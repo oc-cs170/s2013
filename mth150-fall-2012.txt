@@ -3,12 +3,14 @@
 1 redemption week
 
 Instructional Outline
+9/3
  1    Git & GitHub.com [Account, Gravatar, Public Repo, GitHub App]
         Repos
         Collaborators
         Open Source Projects
         Portfolio Exhibit
         Git Commands
+9/10
  2    PyGame Intro [Kaleidoscope]
         (www.pygame.org)
         Game Loop
@@ -17,23 +19,27 @@ Instructional Outline
         Keyboard
         pygame.Color
         pygame.draw
+9/17
  3    PyGame Topics [Doodle Jump]
         Mouse
         Fonts & Text
         Sounds & Music
         Sprites
         Sprite Groups
+9/24
  4    Physics I [Pool Table]
         Movement
         Boundaries
         Gravity
         Collisions
         Mass
+10/1
  5    Physics II [Batter Up!]
         Making a physics module
         Keyboard/Mouse
         Anonymous Functions
         Springs
+10/8
  6    File Access
         Text Files - R, W, A
         Structured Text Files
@@ -41,12 +47,18 @@ Instructional Outline
             JSON
             YAML
         Binary Files
+10/15
  7    Animation & Buffering
         Animated Sprites
         Multi-surface rendering
         Off-screen drawing
+10/22
  8    Animation & Buffering II?
+10/29
  9    Game Classics I?
+11/5
 10    Game Classics II?
+11/12
 11    COMPETITION
+11/19
 12    REDEMPTION

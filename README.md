@@ -7,4 +7,6 @@ CS EXP 01 - Practical Software Construction I (CS 170)
 2. [Asteroids](https://github.com/oc-cs170/asteroids)
 3. [Gorillas](https://github.com/oc-cs170/gorillas)
 4. [Breakout Redux (individual)](https://github.com/oc-cs170/s2013/blob/master/week-4.md)
-5. Space Invaders
+5. [Space Invaders](https://github.com/oc-cs170/space-invaders)
+6. *Break*
+7. [Games Cleanup (individual)](https://github.com/oc-cs170/s2013/blob/master/week-7.md)

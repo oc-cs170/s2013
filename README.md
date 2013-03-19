@@ -10,3 +10,4 @@ CS EXP 01 - Practical Software Construction I (CS 170)
 5. [Space Invaders](https://github.com/oc-cs170/space-invaders)
 6. *Break*
 7. [Games Cleanup (individual)](https://github.com/oc-cs170/s2013/blob/master/week-7.md)
+8. [Scroller](https://github.com/oc-cs170/scroller)

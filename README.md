@@ -29,16 +29,16 @@ CS EXP 01 - Practical Software Construction I (CS 170)
  * An original game idea
  * Include a game title
  * Include a game description
-   * Display style
-   * Goals
-   * Scoring systems
-   * Health/life metrics
-   * Unique aspects of game or presentation
+     * Display style
+     * Goals
+     * Scoring systems
+     * Health/life metrics
+     * Unique aspects of game or presentation
  * Choose an approved sprite set or procedurally drawn graphics
  * Put together a pitch presentation
-   * Google Docs Presentation
-   * Minimum 3 slides
-   * Storyboards recommended
+     * Google Docs Presentation
+     * Minimum 3 slides
+     * Storyboards recommended
  * Presentation limited to 60 seconds
 
 ### Schedule
